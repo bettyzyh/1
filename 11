@@ -1,0 +1,131 @@
+## Examples of Applied Time Series Analysis, By He Shuyuan
+## Chpater 6, ARMA estimation
+
+## AR estimation demo
+demo.ar.est <- function(n=50, m=100){
+  a <- c(1.16, -0.37, -0.11, 0.18)
+  sig <- 1
+  ests.yw <- matrix(0, nrow=m, ncol=5)
+  ests.ls <- matrix(0, nrow=m, ncol=5)
+  for(ii in seq(m)){
+    x <- ar.gen(n, a, sigma=sig)
+    ## do Levinson estimation and LS estimation
+    fit.yw <- ar(x, aic=F, order.max=4,
+                 method="yule-walker")
+    ests.yw[ii,] <- c(fit.yw$ar, fit.yw$var.pred)
+    fit.ls <- ar(x, aic=F, order.max=4,
+                 method="ols")
+    ests.ls[ii,] <- c(fit.ls$ar, fit.ls$var.pred)
+  }
+  res <- matrix(0, nrow=5, ncol=5)
+  rownames(res) <- c("True par", "Y-W avg", "LS avg",
+                      "Y-W std", "LS std")
+  colnames(res) <- c("a1", "a2", "a3", "a4", "s2")
+  res[1,] <- c(a, sig^2)
+  res[2,] <- apply(ests.yw, 2, mean)
+  res[3,] <- apply(ests.ls, 2, mean)
+  res[4,] <- apply(ests.yw, 2, sd)
+  res[5,] <- apply(ests.ls, 2, sd)
+  cat("AR模型模拟: 重复", m, "次估计比较\n")
+  print(res)
+
+  invisible(res)
+}
+
+
+demo.pacf <- function(n=1024){
+  rtlis <- list(c(complex(mod=1.09, arg=pi/3*c(1,-1)),
+                  complex(mod=1.098, arg=pi*2/3*c(1,-1))),
+                c(complex(mod=1.264, arg=pi/3*c(1,-1)),
+                  complex(mod=1.273, arg=pi*2/3*c(1,-1))),
+                c(complex(mod=1.635, arg=pi/3*c(1,-1)),
+                  complex(mod=1.647, arg=pi*2/3*c(1,-1))),
+                complex(mod=1.02, arg=pi/6*c(1,-1)),
+                complex(mod=1.02, arg=pi/2*c(1,-1)),
+                c(complex(mod=1.05, arg=pi/6*c(1,-1)),
+                  complex(mod=1.05, arg=pi/2*c(1,-1))))
+  tits <- c("AR(4): 1.09exp(+-i pi/3), 1.098exp(+-i 2pi/3)",
+            "AR(4): 1.264exp(+-i pi/3), 1.273exp(+-i 2pi/3)",
+            "AR(4): 1.635exp(+-i pi/3), 1.647exp(+-i 2pi/3)",
+            "AR(2): mod=1.02 arg=+-pi/6",
+            "AR(2): mod=1.02 arg=+-pi/2",
+            "AR(4): mod=1.05 arg=+-pi/6,+-pi/2")
+  oldpar <- par(mfrow=c(2,1)); on.exit(par(oldpar))
+  for(ii in seq(along=rtlis)){
+    rt = rtlis[[ii]]
+    y <- ar.gen(n, rt, sigma=1.0, by.roots=TRUE,
+                plot.it=FALSE)
+    plot(y, main=tits[ii])
+    pacf(y)
+    locator(1)
+  }
+}
+
+ar.bic <- function(x, order.max=10){
+  aics <- numeric(order.max+1)
+  bics <- numeric(order.max+1)
+  aics[1] <- log(var(x))
+  bics[1] <- log(var(x))
+  n <- length(x)
+  for(ii in 1:10){
+    s2 <- ar(x, aic=F, order.max=ii,
+             method="yule-walker")$var.pred
+    aics[ii+1] <- log(s2) + ii*2/n
+    bics[ii+1] <- log(s2) + ii*log(n)/n
+  }
+  p <- which.min(bics) - 1
+  list(p=p, bics=bics, aics=aics)
+}
+
+demo.ar.order <- function(n=300, m=100){
+  a <- c(1.16, -0.37, -0.11, 0.18)
+  sig <- 1
+  orders.aic <- numeric(m)
+  orders.bic <- numeric(m)
+  for(ii in seq(m)){
+    x <- ar.gen(n, a, sigma=sig)
+    ## do Levinson estimation and LS estimation
+    fit.yw <- ar(x, aic=T, order.max=10,
+                 method="yule-walker")
+    p.aic <- fit.yw$order
+    fit.bic <- ar.bic(x, order.max=10)
+    aics <- fit.bic$aics
+    bics <- fit.bic$bics
+    p.bic <- fit.bic$p
+    orders.aic[ii] <- p.aic
+    orders.bic[ii] <- p.bic
+    if(ii<=10){
+      yr <- range(c(aics, bics))
+      plot(0:10, aics, type="b", col="red",
+           main=paste("AR(4): AIC and BIC with n =", n),
+           xlab="p", ylab="AIC & BIC")
+      lines(0:10, bics, type="b", col="cyan")
+      abline(v=p.aic, col="red")
+      abline(v=p.bic, col="cyan")
+      legend(7,yr[2], lty=1,
+             col=c("red", "cyan"),
+             legend=c("AIC", "BIC"))
+      locator(1)
+    }
+  }
+  cat("\n重复", m, "次的结果:\n")
+  cat("AIC order:\n")
+  print(table(orders.aic))
+  cat("BIC order:\n")
+  print(table(orders.bic))
+}
+
+
+
+demo06 <- function(){
+  demos <- list("AR estimation accuracy"=demo.ar.est,
+                "AR order selection by PACF"=demo.pacf,
+                "AR order selection by AIC and BIC"=demo.ar.order
+                )
+  ndemos <- length(demos)
+  prompts <- paste("   ", seq(ndemos), ". ", names(demos), "\n", sep="")
+  cat("Demos of Chapter 6:\n",
+      prompts)
+  sel <- scan(n=1, quiet=TRUE)
+  demos[[sel]]()
+}
